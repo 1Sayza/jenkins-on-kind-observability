@@ -1,5 +1,7 @@
 # PROJETO DEVOPS LABORATÓRIO ESIG
 
+<img width="1536" height="1024" alt="projeto-devops" src="https://github.com/user-attachments/assets/de84183a-bbfc-4086-8041-2cd8ffb8f80c" />
+
 # Jenkins (WAR) em Tomcat/JBoss + Jolokia + Kubernetes + Prometheus
 
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](#)

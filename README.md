@@ -11,7 +11,7 @@
 - [Arquitetura](#arquitetura)
 - [Pré-requisitos](#pré-requisitos)
 - [Etapa 1 — Docker (Tomcat/JBoss + Jenkins WAR + Jolokia)](#etapa-1--docker-tomcatjboss--jenkins-war--jolokia)
-- [Etapa 2 — Kubernetes](#etapa-2--kubernetes)
+- [Etapa 2 — Kubernetes](#etapa-2--kubernetes-deployment--service)
 - [Etapa 3 — Monitoramento (Prometheus + Node Exporter)](#etapa-3--monitoramento-prometheus--node-exporter)
 - [Segurança (boas práticas aplicadas)](#segurança-boas-práticas-aplicadas)
 - [Troubleshooting](#troubleshooting)

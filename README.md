@@ -13,8 +13,8 @@
 - [Arquitetura](#arquitetura)
 - [Pré-requisitos](#pré-requisitos)
 - [Etapa 1 — Docker (Tomcat/JBoss + Jenkins WAR + Jolokia)](#etapa-1--docker-tomcatjboss--jenkins-war--jolokia)
-- [Etapa 2 — Kubernetes](#etapa-2--kubernetes-deployment--service).
-- [Etapa 3 — Monitoramento (Prometheus + Node Exporter)](#3-monitoramento-prometheus--jolokia--node-exporter)
+- [Etapa 2 — Kubernetes](#etapa-2--kubernetes-deployment--service)
+- [Etapa 3 — Monitoramento (Prometheus + Node Exporter)](#etapa-3--monitoramento-prometheus--jolokia--node-exporter)
 - [Segurança (boas práticas aplicadas)](#segurança-boas-práticas-aplicadas)
 
 
@@ -201,10 +201,21 @@ Você precisa ver:
 
 - job do node-exporter como UP
 - job do jenkins/jolokia como UP
+  
+---
 
+## Boas Práticas de Segurança Aplicada
 
+- Segurança do Jolokia (validação do acesso)
 
+- Para garantir que o Jolokia não ficasse exposto de forma insegura, o ambiente foi configurado com duas camadas de proteção:
 
+O Jolokia não está em modo “open” e segue as regras definidas na policy.
+
+Porta 8778 limitada ao localhost do host: o mapeamento foi feito com bind em 127.0.0.1, exibido no docker ps como:
+127.0.0.1:8778->8778/tcp
+
+Dessa forma, a porta não fica acessível pela rede, permitindo acesso ao Jolokia apenas localmente no servidor, reduzindo significativamente a superfície de ataque.
 
 
 

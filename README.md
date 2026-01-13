@@ -81,6 +81,17 @@ port=8778
 agentId=jenkins
 discoveryEnabled=false
 ```
+Se for LAB local: o mínimo seguro é “não publicar” a 8778
+
+- Você pode manter Jolokia rodando, mas não expor a porta fora do container
+
+- E quando precisar acessar o Jolokia, você faz via host usando docker exec ou publica temporariamente.
+
+- Se quiser acessar do host sem publicar, dá pra usar docker exec + curl de dentro do container:
+```bash
+docker exec -it jenkins sh -lc 'curl -s http://127.0.0.1:8778/jolokia/version'
+```
+
 ### 4. Dockerfile
 
 - Use imagem com Java 17

@@ -58,10 +58,8 @@ com coleta de métricas por **Prometheus** e **Node Exporter**.
 
 docker/
   Dockerfile
-  docker-compose.yml
-  jenkins.war
-  jolokia-jvm.jar
-  jolokia.properties
+  docker-entrypoint.sh
+  jolokia-access.xml
 
 ```
 

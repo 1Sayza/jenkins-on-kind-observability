@@ -20,185 +20,166 @@
 
 ---
 
-## Objetivo
-Este repositório implementa um Jenkins atualizado via **WAR** rodando em um servidor de aplicação (**Tomcat ou JBoss**),
-containerizado em **Docker** e com métricas expostas via **Jolokia**. Em seguida, o mesmo deploy é realizado em **Kubernetes**
-com coleta de métricas por **Prometheus** e **Node Exporter**.
+# Laboratório DevOps — Jenkins + Docker + Kubernetes + Prometheus (Jolokia)
 
-> Requisitos do desafio: Jenkins WAR em JBoss/Tomcat, métricas via Jolokia, Kubernetes (Deployment/Service) e monitoramento com Prometheus + Node Exporter.  
+Este repositório documenta a montagem de um laboratório em **3 etapas**:
+1) **Docker**: Jenkins (imagem oficial) + **Jolokia Agent** (métricas JVM/Jenkins) com segurança  
+2) **Kubernetes (kind)**: implantação via **Deployment + Service**  
+3) **Monitoramento**: **Prometheus + Node Exporter + Jolokia Exporter** (com **Auth Proxy** para Jolokia)
 
----
+> Ambiente: Windows + WSL/VM Ubuntu 22.04 (VirtualBox) + Docker + kind + kubectl
 
-## Arquitetura
-**Local (Docker):**
-- Container: Tomcat/JBoss + Jenkins WAR
-- Jolokia agent exposto em `/jolokia` (porta definida no compose)
-- Acesso Jenkins via `http://localhost:8080`
-
-**Kubernetes:**
-- Deployment + Service para app
-- Prometheus scraping do endpoint Jolokia
-- Node Exporter para métricas dos nós
-
-
----
-
-## Pré-requisitos
-- Docker e Docker Compose
-- Kubernetes (minikube, kind, k3d, ou cluster real)
-- kubectl
-- (Opcional) Helm
-
----
-
-## Etapa 1 — Docker (Tomcat/JBoss + Jenkins WAR + Jolokia)
-
-### 1. Estrutura de Pastas
+## Estrutura do repositório
 ```bash
-
-docker/
-  Dockerfile
-  docker-entrypoint.sh
-  jolokia-access.xml
-
+esig-jenkins/
+├─ docker/
+│ ├─ Dockerfile
+│ ├─ docker-entrypoint.sh
+│ └─ jolokia-access.xml
+└─ k8s/
+├─ jenkins.yaml
+├─ jenkins-mon.yaml
+└─ prometheus.yaml
 ```
 
-### 2. Baixar os Artefatos (Fontes confiáveis)
+## Etapa 1 — Docker (Jenkins Oficial + Jolokia)
 
-- Baixe jenkins.war (última versão) e salve em: docker/jenkins.war
-- Baixe o Jolokia JVM agent (jolokia-jvm.jar) e salve em: docker/jolokia-jvm.jar
+## 1) Pré-requisitos
+- Docker instalado e funcionando
 
-https://hub.docker.com/r/jolokia/java-jolokia?utm_source=chatgpt.com
+## 2) Arquivos da etapa
+Crie/garanta estes arquivos em `docker/`:
 
-### 3. Configurar Jolokia
-
-- Crie docker/jolokia.properties:
-```bash
-host=127.0.0.1
-port=8778
-agentId=jenkins
-discoveryEnabled=false
+### `docker/jolokia-access.xml`
+Policy mínima (somente leitura):
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<restrict>
+  <commands>
+    <command>read</command>
+    <command>list</command>
+    <command>version</command>
+  </commands>
+</restrict>
 ```
-Se for LAB local: o mínimo seguro é “não publicar” a 8778
+- Criação do arquivo no diretório docker/docker-entrypoint.sh
+- Criação do arquivo no diretório docker/Dockerfile
 
-- Você pode manter Jolokia rodando, mas não expor a porta fora do container
-
-- E quando precisar acessar o Jolokia, você faz via host usando docker exec ou publica temporariamente.
-
-- Se quiser acessar do host sem publicar, dá pra usar docker exec + curl de dentro do container:
-```bash
-docker exec -it jenkins sh -lc 'curl -s http://127.0.0.1:8778/jolokia/version'
-```
-
-### 4. Dockerfile
-
-- Use imagem com Java 17
-- Rodar como usuário não-root
-- Não expor Jolokia publicamente
-
-### 5. Docker-compose
-
-- Mapeie portas assim:
-
-Jenkins/Tomcat: 127.0.0.1:8080:8080 /
-Jolokia: 127.0.0.1:8778:8778
-
-### 6. Subir e validar
+## 3) Build da imagem
 ```bash
 cd docker
-docker compose up -d --build
-docker compose logs -f
+docker build -t esig/jenkins-jolokia:2.528.3 .
 ```
-Validar Jenkins:
-- http://localhost:8080
-
-Validar Jolokia:
+## 4) Subir o container (porta 8778 restrita ao localhost)
 ```bash
-curl -s http://127.0.0.1:8778/jolokia/version | jq
+docker run -d --name jenkins \
+  -p 8080:8080 \
+  -p 127.0.0.1:8778:8778 \
+  -e JOLOKIA_USER=admin \
+  -e JOLOKIA_PASSWORD='<SUA_SENHA>' \
+  esig/jenkins-jolokia:2.528.3
 ```
+## 5) Validar Jenkins 
 
----
+- Acesse: http://localhost:8080
+  
+```bash
+docker exec -it jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+```
+## 6) Validar Jolokia (com autenticação)
+
+- Sem auth → deve retornar 401:
+  
+```bash
+curl -i http://127.0.0.1:8778/jolokia/version
+```
+- Com auth → deve retornar 200:
+```bash
+curl -u admin:'<SUA_SENHA>' http://127.0.0.1:8778/jolokia/version
+```
 
 ## Etapa 2 — Kubernetes (Deployment + Service)
 
-### 1. Criar namespaces
+- Cluster Local com Kind
+
+### 1) Criar cluster 
 ```bash
-kubectl create namespace jenkins-lab
-kubectl create namespace monitoring
-```
-### 2. Publicar a imagem no cluster
-```bash
-cd docker
-docker build -t jenkins-jolokia:latest .
-kind load docker-image jenkins-jolokia:latest
+kind create cluster --name esig
 ```
 
-### 3. Manifestos (base)
-
-Crie em k8s/base/:
-
-- deployment.yaml (com securityContext, liveness/readiness, volume para Jenkins home)
-- service.yaml ClusterIP (nada exposto externamente)
-
-Boas práticas de segurança no Deployment (recomendadas):
-
-- runAsNonRoot: true
-- allowPrivilegeEscalation: false
-- readOnlyRootFilesystem: false (Jenkins precisa escrever; em vez disso, monte volumes apenas onde precisa)
-- resources (requests/limits)
-- imagePullPolicy: IfNotPresent
-
-Aplicar:
+### 2) Carregar a imagem Docker no kind
 ```bash
-kubectl apply -f k8s/base/ -n jenkins-lab
-kubectl get pods -n jenkins-lab
-kubectl get svc -n jenkins-lab
-```
-### 4. Acessar Jenkins com port-forward (mais seguro)
-```bash
-kubectl -n jenkins-lab port-forward svc/jenkins 8080:8080
-```
-- Acesse: http://localhost:8080
-
-### 5. Validar Jolokia no cluster
-
-Se o Jolokia estiver no Pod, valide com port-forward temporário:
-```bash
-kubectl -n jenkins-lab port-forward svc/jenkins 8778:8778
-curl -s http://127.0.0.1:8778/jolokia/version | jq
+kind load docker-image esig/jenkins-jolokia:2.528.3 --name esig
 ```
 
----
+### 3) Aplicar manifestos do Jenkins no cluster
+```bash
+kubectl apply -f k8s/jenkins.yaml
+kubectl -n cicd get pods -w
+kubectl -n cicd get svc
+```
+### 4) Acessar Jenkins no cluster (port-forward)
+
+- Se a porta local 8080 estiver ocupada, use 18080.
+
+```bash
+kubectl -n cicd port-forward svc/jenkins 18080:8080
+```
+Acesse:
+- http://localhost:18080
+
 
 ## Etapa 3 — Monitoramento (Prometheus + Jolokia + Node Exporter)
 
-### 1. Node Exporter
-Aplicar:
+Nesta etapa:
+
+Node Exporter coleta métricas do nó (CPU, memória, disco, rede)
+
+Jolokia Exporter coleta métricas do Jenkins/JVM via Jolokia
+
+Auth Proxy (Nginx sidecar) injeta Authorization no Jolokia (evita falhas e mantém Jolokia protegido)
+
+Prometheus faz scrape de:
+
+node-exporter:9100/metrics
+
+jenkins-metrics:9422/metrics
+
+### 1) Implementar Prometheus + Node Exporter
 ```bash
-kubectl apply -f k8s/monitoring/node-exporter/ -n monitoring
-kubectl get pods -n monitoring -l app=node-exporter
+kubectl apply -f k8s/prometheus.yaml
+kubectl -n monitoring get pods -w
+```
+### 2) Implantar o monitoramento do Jenkins (jenkins-mon + jenkins-metrics)
+```bash
+kubectl apply -f k8s/jenkins-mon.yaml
+kubectl -n cicd get pods -w
+kubectl -n cicd get svc jenkins-metrics
+```
+### 3) Validar métricas do Jenkins (exporter)
+
+- Port-forward do service de métricas:
+```bash
+kubectl -n cicd port-forward svc/jenkins-metrics 19422:9422
+```
+- Testar:
+```bash
+curl -s http://127.0.0.1:19422/metrics | head -n 30
+```
+### 4) Validar Prometheus e targets UP
+Port-forward do Prometheus:
+```bash
+kubectl -n monitoring port-forward svc/prometheus 19090:9090
 ```
 
-### 2. Prometheus (Deployment + ConfigMap + Service)
-Aplicar:
-```bash
-kubectl apply -f k8s/monitoring/prometheus/ -n monitoring
-kubectl get pods -n monitoring
-kubectl get svc -n monitoring
-```
-Acessar Prometheus (port-forward):
-```bash
-Acessar Prometheus (port-forward):
-```
-Abrir:
-- http://localhost:9090/targets
+Acessar:
 
-### 3. Garantir que “Targets” estão UP
+- http://localhost:19090/targets
 
-Você precisa ver:
+Você deve ver como UP:
 
-- job do node-exporter como UP
-- job do jenkins/jolokia como UP
+- jenkins-jolokia (scrape em jenkins-metrics:9422/metrics)
+- node-exporter (scrape em node-exporter:9100/metrics)
 
 <img width="1877" height="495" alt="image" src="https://github.com/user-attachments/assets/229aca3d-7f91-4142-9eb1-21b3a068f78e" />
 
@@ -206,19 +187,19 @@ Você precisa ver:
 
 ## Boas Práticas de Segurança Aplicada
 
-### Visão geral do fluxo de métricas
+Porta 8778 protegida: no Docker foi mapeada apenas para 127.0.0.1
 
-**Objetivo:** coletar métricas do Jenkins (Java/JVM) sem expor o Jolokia de forma insegura.
+Basic Auth habilitado no Jolokia
 
-Fluxo aplicado:
+PolicyRestrictor com comandos mínimos (read, list, version)
 
-1. **Jenkins** roda com **Jolokia Agent** (porta interna 8778)
-2. **Auth Proxy (Nginx sidecar)** injeta autenticação Basic para o Jolokia
-3. **Jolokia Exporter (sidecar)** converte Jolokia → endpoint Prometheus `/metrics` (porta 9422)
-4. **Prometheus** faz scrape do endpoint `/metrics` via Service ClusterIP (sem expor 8778)
+No Kubernetes, Prometheus não acessa 8778 diretamente:
 
-- Resultado: Prometheus coleta métricas sem precisar publicar 8778 na rede.
+usa jenkins-metrics:9422 (exporter)
 
+Jolokia fica interno no Pod
+
+Auth Proxy Nginx: injeta Authorization e evita expor credenciais em URL
 
 
 

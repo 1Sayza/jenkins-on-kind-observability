@@ -24,7 +24,7 @@ Este repositório documenta a montagem de um laboratório em **3 etapas**:
 2) **Kubernetes (kind)**: implantação via **Deployment + Service**  
 3) **Monitoramento**: **Prometheus + Node Exporter + Jolokia Exporter** (com **Auth Proxy** para Jolokia)
 
-> Ambiente: Windows + WSL/VM Ubuntu 22.04 (VirtualBox) + Docker + kind + kubectl
+> Ambiente: Windows + WSL/VM Ubuntu 22.04 server (VirtualBox) + Docker + kind + kubectl
 
 ## Estrutura do repositório
 ```bash

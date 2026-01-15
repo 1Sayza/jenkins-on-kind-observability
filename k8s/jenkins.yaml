@@ -3,6 +3,19 @@ kind: Namespace
 metadata:
   name: cicd
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-home
+  namespace: cicd
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: local-path
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -18,6 +31,12 @@ spec:
       labels:
         app: jenkins
     spec:
+      securityContext:
+        fsGroup: 1000
+      volumes:
+        - name: jenkins-home
+          persistentVolumeClaim:
+            claimName: jenkins-home
       containers:
         - name: jenkins
           image: esig/jenkins-jolokia:2.528.3
@@ -31,6 +50,9 @@ spec:
               value: "admin"
             - name: JOLOKIA_PASSWORD
               value: "linux@@123"
+          volumeMounts:
+            - name: jenkins-home
+              mountPath: /var/jenkins_home
           # (opcional) limites básicos
           resources:
             requests:
@@ -53,4 +75,3 @@ spec:
       port: 8080
       targetPort: http
   type: ClusterIP
-

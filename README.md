@@ -1,4 +1,4 @@
-# PROJETO DEVOPS LABORATÓRIO ESIG
+# PROJETO DEVOPS LABORATÓRIO
 
 <img width="1536" height="1024" alt="fluxograma" src="https://github.com/user-attachments/assets/95986203-cd84-41b7-97db-78084ca6e9fd" />
 

@@ -93,7 +93,7 @@ spec:
             - name: JOLOKIA_USER
               value: "admin"
             - name: JOLOKIA_PASSWORD
-              value: "linux@@123"
+              value: "<SUA_SENHA>"
           volumeMounts:
             - name: jenkins-home
               mountPath: /var/jenkins_home

@@ -28,7 +28,7 @@ Este repositório documenta a montagem de um laboratório em **3 etapas**:
 
 ## Estrutura do repositório
 ```bash
-esig-jenkins/
+projeto-jenkins/
 ├─ docker/
 │  ├─ Dockerfile
 │  ├─ docker-entrypoint.sh
